@@ -1,0 +1,36 @@
+.option TEMP=25.0
+
+.include "design.xyce"
+.lib "sm141064.xyce" typical
+.lib "sm141064.xyce" efuse
+*.lib "sm141064.xyce" diode_ff
+*.lib "sm141064.xyce" moscap_typical
+
+.include efuse_senseamp.spice
+
+*Xtest VDD nPRESET OUT SENSE VSS FUSE efuse_senseamp
+Xtest VSS VDD nPRESET SENSE OUT FUSE efuse_senseamp
+
+
+.PREPROCESS REPLACEGROUND TRUE
+VVDD VDD GND 5V
+VVSS VSS GND 0
+
+* programming test
+*VPROG nPROG GND PULSE(5V 0 1us 10ns 10ns 1us 10us)
+*VPRESET nPRESET GND 5V
+*VSENSE SENSE GND 0V
+
+* sense test
+VPRESET nPRESET GND PULSE(5V 0V 1us 1ns 1ns 100ns 100us)
+VSENSE SENSE GND PULSE(0 5V 1.5us 1ns 1ns 100ns 10us)
+
+RFUSE FUSE GND 2000
+
+
+.TRAN 1e-12 3e-6
+*.PRINT TRAN I(*)
+.PRINT TRAN V(SENSE) V(nPRESET) V(OUT)
+*.PRINT TRAN V(*)
+.end
+
