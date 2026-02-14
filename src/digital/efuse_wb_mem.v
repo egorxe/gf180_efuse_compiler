@@ -6,8 +6,8 @@
  * 
  */
 
- `timescale 1ns/1ps
- `default_nettype none
+`timescale 1ns/1ps
+`default_nettype none
 
 `ifndef EFUSE_WBMEM_NAME
 `define EFUSE_WBMEM_NAME efuse_wb_mem
@@ -20,7 +20,7 @@
 module `EFUSE_WBMEM_NAME #(
     parameter EFUSE_NWORDS      = 64,
     parameter EFUSE_WORD_WIDTH  = 8,
-    parameter WB_ADR_WIDTH      = 7,
+    parameter WB_ADR_WIDTH      = 6,
     parameter WB_DAT_WIDTH      = 8,
     parameter WB_SEL_WIDTH      = (WB_DAT_WIDTH / 8)
 ) (
@@ -54,7 +54,7 @@ module `EFUSE_WBMEM_NAME #(
 
     reg [WB_DAT_WIDTH-1:0] dat_o;
     reg ack_o;
-    reg [2:0] state;
+    reg [1:0] state;
     reg [COUNTER_WIDTH-1:0] counter;
 
     wire [EFUSE_NWORDS-1:0] bit_sel;

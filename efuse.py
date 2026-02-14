@@ -324,7 +324,7 @@ def main():
     parser.add_argument("--xyce-netlist", type = str, default = "pex", choices=["none", "schematic", "extracted", "pex", "all"],
         help = "Run Xyce tests with specified netlist, default = pex."
     )
-    parser.add_argument("--digital-wrapper", type = str, default = "none", choices=["none", "wishbone"],
+    parser.add_argument("--digital-wrapper", type = str, default = "none", choices=["none", "wishbone", "spi"],
         help = "Generate digital wrapper with Librelane, default = none."
     )
     parser.add_argument("--digital-depth", type = int, default = None, help = "Depth of digital memory block.")

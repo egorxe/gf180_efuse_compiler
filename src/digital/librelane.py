@@ -109,12 +109,12 @@ class EfuseLibrelane(LibrelaneRunner):
         super().__init__()
 
         # check requested parameters
-        if params[0] != "wishbone":
-            self.panic("Only Wishbone wrapper is supported for now.")
+        if params[0] not in ["wishbone", "spi"]:
+            self.panic("Only Wishbone and SPI wrappers are supported.")
 
         supported_params = (
             ("wishbone", 32, 8), ("wishbone", 64, 8), ("wishbone", 64, 32), ("wishbone", 128, 8), 
-            ("wishbone", 512, 32), ("wishbone", 1024, 32), 
+            ("wishbone", 512, 32), ("wishbone", 1024, 32), ("spi", 128, 8), ("spi", 256, 8), 
         )
         if params not in supported_params:
             logging.warning(f"Digital wrapper configuration {params} was not tested and might fail to generate. " +
@@ -125,6 +125,13 @@ class EfuseLibrelane(LibrelaneRunner):
 
         if int(2 ** log2(params[1])) != params[1]:
             self.panic("Depth of the digital wrapper should be a power of 2.")
+
+        if params[0] == "spi": 
+            if word_width != 8:
+                self.panic("SPI wrapper supports only 8-bit width.")
+            spi = 1
+        else:
+            spi = 0
 
         # determine sizes and paths
         self.macro = macro
@@ -145,17 +152,23 @@ class EfuseLibrelane(LibrelaneRunner):
                     break
 
         # set basic vars
-        self.name = f"efuse_wb_mem_{params[1]}x{params[2]}"
+        self.wb_name = f"efuse_wb_mem_{params[1]}x{params[2]}"
+        if spi:
+            self.name = f"efuse_spi_mem_{params[1]}x{params[2]}"
+        else:
+            self.name = self.wb_name
         self.config["DESIGN_NAME"] = self.name
         self.config["VERILOG_FILES"] = [ str(self.cd / "efuse_wb_mem.v") ]
+        if spi:
+            self.config["VERILOG_FILES"] += [str(self.cd / "efuse_spi_mem.v"), str(self.cd / "spi2wb.v")]
         self.config["PNR_SDC_FILE"] = [ str(self.cd / "constraints.sdc") ]
-        self.config["CLOCK_PORT"] = "wb_clk_i"
+        self.config["CLOCK_PORT"] = "wb_clk_i" if not spi else "clk_i"
         self.config["CLOCK_PERIOD"] = 30
 
         # set defines & parameters
         mask = (params[2] // 8) if params[2] % 8 == 0 else 1
 
-        self.config["VERILOG_DEFINES"] = [f"EFUSE_WBMEM_NAME={self.name}", f"EFUSE_ARRAY_NAME={macro}"]
+        self.config["VERILOG_DEFINES"] = [f"EFUSE_WBMEM_NAME={self.wb_name}", f"EFUSE_ARRAY_NAME={macro}"]
         self.config["SYNTH_PARAMETERS"] = [
             f"EFUSE_NWORDS={nwords}", 
             f"EFUSE_WORD_WIDTH={word_width}", 
@@ -163,10 +176,12 @@ class EfuseLibrelane(LibrelaneRunner):
             f"WB_SEL_WIDTH={mask}",
             f"WB_ADR_WIDTH={int(log2(params[1]))}",
         ]
+        if spi:
+            self.config["VERILOG_DEFINES"].append(f"EFUSE_SPIMEM_NAME={self.name}")
 
         # floorplan & PDN
         cm = 10         # core margin
-        wb_area = 35000 # area estimate
+        wb_area = 35000 + spi*10000 # area estimate
         if (n_arrays_depth < 2) and (mask > 1):
             wb_area += 2000
         array_step_x = (int((wb_area / (n_arrays_depth * array_y))*10)/10) + 35
@@ -174,7 +189,8 @@ class EfuseLibrelane(LibrelaneRunner):
         self.config["FP_SIZING"] = "absolute"
         self.config["DIE_AREA"] = da = [0, 0, array_x*n_arrays_depth + array_step_x*n_arrays_depth, array_y+50]
         self.config["CORE_AREA"] = [da[0] + cm, da[1] + cm, da[2] - cm, da[3] - cm]
-        self.config["IO_PIN_ORDER_CFG"] = str(self.cd / "pin.cfg")
+        pin_cfg = "spi_pin.cfg" if spi else "pin.cfg"
+        self.config["IO_PIN_ORDER_CFG"] = str(self.cd / pin_cfg)
 
         self.config["FP_PDN_CORE_RING"] = True
         self.config["PDN_CORE_RING_VWIDTH"] = 2
@@ -206,6 +222,7 @@ class EfuseLibrelane(LibrelaneRunner):
 
         # efuse macro
         array_inst = {}
+        prefix = "efuse_wb_mem." if spi else ""
         for x in range(n_arrays_depth):
-            array_inst.update({f"efuse_gen_depth[{x}].efuse_array" : [10 + (array_x+array_step_x)*x , cm + 5, "N" if (x%2) else "FN"]})
+            array_inst.update({f"{prefix}efuse_gen_depth[{x}].efuse_array" : [cm + (array_x+array_step_x)*x , cm + 5, "N" if (x%2) else "FN"]})
         self.add_macro(macro, gds, lef, bb, array_inst)
