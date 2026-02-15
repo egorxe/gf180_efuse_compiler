@@ -24,38 +24,60 @@ def subcircuit(name : str, ports : str, body : str, params : str = "") -> str:
 .ends
     """
 
-def efuse_bitline(n_fuses : int, device_naming : list) -> str:
-    bitline_ports = "VSS VDD SENSE PRESET_N "
-    for i in range(n_fuses):
-        bitline_ports += f"BIT_SEL[{i}] "
-    bitline_ports += "COL_PROG_N OUT"
-    write_magic_ports("efuse_bitline_ports.tcl", bitline_ports)
+def efuse_array_async(word_width : int, n_fuses : int, device_naming : list) -> str:
+    assert(n_fuses==1)
+    bitline_ports = "VSS VDD "
+    for i in range(word_width):
+        bitline_ports += f"COL_PROG_N[{i}] OUT[{i}] "
+    bitline_ports += "SENSE PRESET_N "
+    # write_magic_ports("efuse_array_ports.tcl", bitline_ports)
     body = ""
-    for i in range(n_fuses):
-        body += f"X{i} VSS VDD BIT_SEL[{i}] bitline efuse_bitcell NUM={{LNUM*1000+{i}}}\n"
+    for i in range(word_width):
+        body += f"X{i} VSS VDD bitline[{i}] efuse_bitcell_async NUM={{LNUM*1000+{i}}}\n"
         
-    # add programming PMOS
-    # ! actually currently it's 4 fingers W=38.25 PMOS, not 2x W=76.5, but there is no such model and LVS is bad with fingers in SPICE !
-    body += f"""{device_naming[0]}0 bitline COL_PROG_N VDD VDD p{device_naming[1]} L=0.50u W=76.5u nf=2"""
-    body += "\n"
-    body += f"""{device_naming[0]}1 bitline COL_PROG_N VDD VDD p{device_naming[1]} L=0.50u W=76.5u nf=2"""
-    body += "\n"
-    # add sensamp
-    body += "Xsense VSS VSS VDD PRESET_N OUT SENSE bitline efuse_senseamp"
+        # add programming PMOS
+        body += f"""{device_naming[0]}prog0_{i} bitline[{i}] COL_PROG_N[{i}] VDD VDD p{device_naming[1]} L=0.50u W=62u nf=2\n"""
+        body += f"""{device_naming[0]}prog1_{i} bitline[{i}] COL_PROG_N[{i}] VDD VDD p{device_naming[1]} L=0.50u W=62u nf=2\n"""
+        # add sensamp
+        body += f"Xsense{i} VSS VSS VDD PRESET_N OUT[{i}] SENSE bitline[{i}] efuse_senseamp\n"
     
-    return subcircuit("efuse_bitline", bitline_ports, body, "LNUM=0")
+    return subcircuit("efuse_array_async_1x8", bitline_ports, body, "")
+    # return subcircuit("efuse_bitline_async", bitline_ports, body, "LNUM=0")
 
-def efuse_array(cellname : str, word_width : int, n_fuses : int, add_cells : str = "") -> str:
-    common_ports = "VSS VDD SENSE PRESET_N " + "".join([f'BIT_SEL[{j}] ' for j in range(n_fuses)])
+def efuse_async_mem(cellname : str, word_width : int, n_fuses : int, add_cells : str = "") -> str:
+    assert(n_fuses==1)
+    common_ports = "VSS VDD "
     array_ports = common_ports
-    sel_ports = ""
-
+    bitline_ports = common_ports
     body = add_cells
 
     for i in range(word_width):
-        bitline_ports = f"COL_PROG_N[{i}] OUT[{i}] "
-        body += f"X{i} {common_ports} {sel_ports} {bitline_ports} efuse_bitline LNUM={i}\n"
-        array_ports += bitline_ports
+        bitline_ports += f"COL_PROG_N[{i}] OUT[{i}] "
+        array_ports += f"prog[{i}] out[{i}] "
+
+    array_ports += "reset_n ready "
+    bitline_ports += "sense preset_n "
+
+    body += f"X0 {bitline_ports} efuse_array_async_1x8 LNUM=0\n"
+    # body += f"X0 {bitline_ports} efuse_bitline_async LNUM=0\n"
+
+    # add read-after-reset logic
+    body += r"""
+Xinv_res RESET_N RESET VDD VDD VSS VSS gf180mcu_fd_sc_mcu7t5v0__inv_2
+Xdel_resn0 RESET_N RESET_N_DEL0 VDD VDD VSS VSS gf180mcu_fd_sc_mcu7t5v0__dlyd_4
+Xdel_resn1 RESET_N_DEL0 RESET_N_DEL1 VDD VDD VSS VSS gf180mcu_fd_sc_mcu7t5v0__dlyd_4
+Xor_preset RESET RESET_N_DEL1 PRESET_N VDD VDD VSS VSS gf180mcu_fd_sc_mcu7t5v0__or2_2
+
+Xinv_resnd RESET_N_DEL1 RESET_DEL0 VDD VDD VSS VSS gf180mcu_fd_sc_mcu7t5v0__inv_2
+Xdel_res0 RESET_DEL0 RESET_DEL1 VDD VDD VSS VSS gf180mcu_fd_sc_mcu7t5v0__dlyd_4
+Xdel_res1 RESET_DEL1 RESET_DEL2 VDD VDD VSS VSS gf180mcu_fd_sc_mcu7t5v0__dlyd_4
+Xand_sense RESET_N_DEL1 RESET_DEL2 SENSE_PREDEL VDD VDD VSS VSS gf180mcu_fd_sc_mcu7t5v0__and2_2
+Xdel_sense SENSE_PREDEL SENSE VDD VDD VSS VSS gf180mcu_fd_sc_mcu7t5v0__dlyd_4
+"""
+
+    # add write inhibit logic
+    for i in range(word_width):
+        body += f"Xnand_wrinhibit{i} RESET_N PROG[{i}] COL_PROG_N[{i}] VDD VDD VSS VSS gf180mcu_fd_sc_mcu7t5v0__nand2_2\n"
 
     write_magic_ports("efuse_array_ports.tcl", array_ports)
     
@@ -63,14 +85,9 @@ def efuse_array(cellname : str, word_width : int, n_fuses : int, add_cells : str
 
 def generate_netlist(cellname : str, filename : str, nwords : int, word_width : int, klayout_lvs : bool = False, add_cells_dict : dict = {}):
 
-    device_naming = ["X", "fet_06v0", "X0 ANODE CATHODE efuse NUM={NUM}"]
-        
-    if klayout_lvs:
-        device_naming[0] = "M"
-        device_naming[1] = "fet_05v0"
-        device_naming[2] = "Rfuse ANODE CATHODE efuse R=200"
+    device_naming = ["X", "fet_06v0", "X0 ANODE VSS efuse NUM={NUM}"]
 
-    # generate additional filler, cap & cap cells
+    # generate additional filler, cap & tie cells
     add_cells = ""
     acnt = 0
     for c in add_cells_dict:
@@ -78,6 +95,14 @@ def generate_netlist(cellname : str, filename : str, nwords : int, word_width : 
             for i in range(add_cells_dict[c]):
                 add_cells += f"Xfill{acnt} VDD VDD VSS VSS {c}\n"
                 acnt += 1
+
+    if klayout_lvs:
+        device_naming[0] = "M"
+        device_naming[1] = "fet_05v0"
+        device_naming[2] = "Rfuse ANODE VSS efuse R=200"
+        async_mem = ""
+    else:
+        async_mem = f"{efuse_async_mem(cellname, word_width, nwords, add_cells)[0]}"
                 
     netlist = f"""* eFuse array netlist with word_width={word_width}, nwords={nwords}
 
@@ -98,21 +123,20 @@ def generate_netlist(cellname : str, filename : str, nwords : int, word_width : 
 {device_naming[0]}19 VDD net_1 net_0 VNW p{device_naming[1]} W=1.22e-06 L=1e-06
 .ENDS
 
-.subckt efuse_bitcell VSS VDD SELECT ANODE PARAMS: NUM=-1
+.subckt efuse_bitcell_async VSS VDD ANODE PARAMS: NUM=-1
 {device_naming[2]}
-{device_naming[0]}1 CATHODE SELECT VSS VSS n{device_naming[1]} L=0.60u W=30.5u
 .ends
 
 .subckt efuse_senseamp VSS VPW VDD PRESET_N OUT SENSE FUSE
-{device_naming[0]}2 net1 PRESET_N VDD VDD p{device_naming[1]} L=0.5u W=3.66u nf=3
+{device_naming[0]}2 net1 PRESET_N VDD VDD p{device_naming[1]} L=0.5u W=2.44u nf=2
 X1 net2 OUT VDD VDD VPW VSS  gf180mcu_fd_sc_mcu7t5v0__inv_1
 X2 net1 net2 VDD VDD VPW VSS gf180mcu_fd_sc_mcu7t5v0__inv_1
 X3 net2 net1 VDD VDD VPW VSS gf180mcu_fd_sc_mcu7t5v0__inv_1
 {device_naming[0]}1 net1 SENSE FUSE VPW n{device_naming[1]} L=0.60u W=0.82u
 .ends
 
-{efuse_bitline(nwords, device_naming)}
-{efuse_array(cellname, word_width, nwords, add_cells)[0]}
+{efuse_array_async(word_width, nwords, device_naming)}
+{async_mem}
 .end
     """
 
@@ -131,7 +155,7 @@ def gen_pwl_bus(name : str, size : int, buf : int):
     return "".join([pwl_from_file(f'{name}[{i}]', buf) for i in range(0, size)])
 
 def generate_xyce_test(cellname : str, filename : str, spice_name : str, xyce_models_path : str, nwords : int, word_width : int, time : float = 100, vdd : float = 5.0):
-    array_ports = efuse_array(cellname, word_width, nwords)[1]
+    array_ports = efuse_async_mem(cellname, word_width, nwords)[1]
     netlist = f"""* Xyce testbench for {cellname}
 .option TEMP=25.0
 .include "blown.map"
@@ -195,23 +219,90 @@ X_i_1_6 Z Z_neg VDD VNW pfet_06v0 W=1.22e-06 L=5e-07
 X_i_1_7 VDD Z_neg Z VNW pfet_06v0 W=1.22e-06 L=5e-07
 .ENDS
 
-{gen_pwl_bus("COL_PROG_N", word_width, 8)}
-{gen_pwl_bus("BIT_SEL", nwords, 2)}
+.SUBCKT gf180mcu_fd_sc_mcu7t5v0__or2_2 A1 A2 Z VDD VNW VPW VSS
+X_i_2 Z_neg A1 VSS VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_3 VSS A2 Z_neg VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_0_0 Z Z_neg VSS VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_0_1 VSS Z_neg Z VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_4 net_0 A1 Z_neg VNW pfet_06v0 W=1.22e-06 L=5e-07
+X_i_5 VDD A2 net_0 VNW pfet_06v0 W=1.22e-06 L=5e-07
+X_i_1_0 Z Z_neg VDD VNW pfet_06v0 W=1.22e-06 L=5e-07
+X_i_1_1 VDD Z_neg Z VNW pfet_06v0 W=1.22e-06 L=5e-07
+.ENDS
 
-{pwl_from_file("SENSE", 8)}
-{pwl_from_file("PRESET_N", 8)}
+.SUBCKT gf180mcu_fd_sc_mcu7t5v0__nand2_2 A1 A2 ZN VDD VNW VPW VSS
+X_i_1_1 net_0_0 A2 VSS VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_0_1 ZN A1 net_0_0 VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_0_0 net_0_1 A1 ZN VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_1_0 VSS A2 net_0_1 VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_3_1 ZN A2 VDD VNW pfet_06v0 W=1.13e-06 L=5e-07
+X_i_2_1 VDD A1 ZN VNW pfet_06v0 W=1.13e-06 L=5e-07
+X_i_2_0 ZN A1 VDD VNW pfet_06v0 W=1.13e-06 L=5e-07
+X_i_3_0 VDD A2 ZN VNW pfet_06v0 W=1.13e-06 L=5e-07
+.ENDS
+
+.SUBCKT gf180mcu_fd_sc_mcu7t5v0__and2_2 A1 A2 Z VDD VNW VPW VSS
+X_i_2 net_0 A1 Z_neg VPW nfet_06v0 W=8.15e-07 L=6e-07
+X_i_3 VSS A2 net_0 VPW nfet_06v0 W=8.15e-07 L=6e-07
+X_i_0_0 Z Z_neg VSS VPW nfet_06v0 W=8.15e-07 L=6e-07
+X_i_0_1 VSS Z_neg Z VPW nfet_06v0 W=8.15e-07 L=6e-07
+X_i_4 Z_neg A1 VDD VNW pfet_06v0 W=1.07e-06 L=5e-07
+X_i_5 VDD A2 Z_neg VNW pfet_06v0 W=1.07e-06 L=5e-07
+X_i_1_0 Z Z_neg VDD VNW pfet_06v0 W=1.215e-06 L=5e-07
+X_i_1_1 VDD Z_neg Z VNW pfet_06v0 W=1.215e-06 L=5e-07
+.ENDS
+
+.SUBCKT gf180mcu_fd_sc_mcu7t5v0__dlyd_4 I Z VDD VNW VPW VSS
+X_i_2_0 Z_neg I VSS VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_2 net_7 Z_neg net_1 VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_3 net_1 Z_neg VSS VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_2_26 net_9 net_7 net_13 VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_3_30 net_13 net_7 VSS VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_2_0_1 net_15 net_9 net_11 VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_3_4 net_11 net_9 VSS VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_2_26_13 net_16 net_15 net_18 VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_3_30_34 net_18 net_15 VSS VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_2_0_10 net_14 net_16 net_19 VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_3_4_49 net_19 net_16 VSS VPW nfet_06v0 W=3.6e-07 L=6e-07
+X_i_2_21 net_3 net_14 net_6 VPW nfet_06v0 W=3.65e-07 L=6e-07
+X_i_3_6 net_6 net_14 VSS VPW nfet_06v0 W=3.65e-07 L=6e-07
+X_i_2_0_18 Z net_3 VSS VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_2_0_18_1 Z net_3 VSS VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_2_0_18_2 Z net_3 VSS VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_2_0_18_1_15 Z net_3 VSS VPW nfet_06v0 W=8.2e-07 L=6e-07
+X_i_3_0 Z_neg I VDD VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_0 net_0 Z_neg VDD VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_1 net_7 Z_neg net_0 VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_0_35 net_12 net_7 VDD VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_1_47 net_9 net_7 net_12 VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_0_9 net_10 net_9 VDD VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_1_22 net_15 net_9 net_10 VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_0_35_50 net_17 net_15 VDD VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_1_47_46 net_16 net_15 net_17 VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_0_9_2 net_20 net_16 VDD VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_1_22_38 net_14 net_16 net_20 VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_0_29 net_5 net_14 VDD VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_1_39 net_3 net_14 net_5 VNW pfet_06v0 W=3.6e-07 L=5e-07
+X_i_3_0_0 Z net_3 VDD VNW pfet_06v0 W=1.22e-06 L=5e-07
+X_i_3_0_0_14 Z net_3 VDD VNW pfet_06v0 W=1.22e-06 L=5e-07
+X_i_3_0_0_34 Z net_3 VDD VNW pfet_06v0 W=1.22e-06 L=5e-07
+X_i_3_0_0_14_19 Z net_3 VDD VNW pfet_06v0 W=1.22e-06 L=5e-07
+.ENDS
+
+{gen_pwl_bus("PROG", word_width, 8)}
+{pwl_from_file("RESET_N", 2)}
 
 .tran 10ps {time}
 * serial solver is more efficient even for large arrays
 .OPTIONS LINSOL TYPE=KLU
 
-.print tran format=csv file={filename}.csv V(PRESET_N) V(SENSE) V(OUT*) V(COL_PROG_N*) V(BIT_SEL*) I(Xefuse_array:X*:RFUSE)
+.print tran format=csv file={filename}.csv V(RESET_N) V(OUT*) V(PROG*) V(READY) I(Xefuse_array:X*:RFUSE)
     """
     
     with open(filename, "w") as f:
         f.write(netlist)
 
-def generate_spices(base_name : str, pdk_path : str, nwords : int, word_width : int, time : float = 100e-9, add_cells : Path | str = ""):
+def generate_spices_async(base_name : str, pdk_path : str, nwords : int, word_width : int, time : float = 100e-9, add_cells : Path | str = ""):
     """
     Generate a basic set of SPICE files - simulation & LVS netlists and Xyce test wrapper.
     """
@@ -253,7 +344,7 @@ def main():
         usage()
     pdk_path = os.environ["PDK_ROOT"] + "/" + os.environ["PDK"]
 
-    generate_spices(base_name, pdk_path, nwords, word_width, 1000)
+    generate_spices_async(base_name, pdk_path, nwords, word_width, 1000)
 
 
 if __name__ == '__main__':

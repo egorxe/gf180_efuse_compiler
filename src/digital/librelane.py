@@ -1,5 +1,5 @@
 #
-# Librelane helper script for eFuse digital wrappers generation
+# Helpers for eFuse digital wrappers generation with Librelane
 #
 
 import os
@@ -10,6 +10,16 @@ from math import log2
 import logging
 import subprocess as sp
 from pathlib import Path
+
+def macro_size_from_lef(lef : str):
+    """
+    Helper func to get macro dimensions from LEF
+    """
+    with open(lef) as f:
+        for l in f.readlines():
+            match = re.search("SIZE ((?:[0-9]*[.])?[0-9]+) BY ((?:[0-9]*[.])?[0-9]+)", l)
+            if match:
+                return float(match.group(1)), float(match.group(2))
 
 class LibrelaneRunner():
     """
@@ -139,17 +149,11 @@ class EfuseLibrelane(LibrelaneRunner):
         self.word_width = word_width
 
         if (params[1] % nwords) or (params[2] % word_width):
-            self.panic("Each digital wrapper dimmention should be a multiple of corresponding array size dimmention.")
+            self.panic("Each digital wrapper dimention should be a multiple of corresponding array size dimention.")
         n_arrays_depth = params[1] // nwords
 
-        # get array dimmensions from LEF
-        with open(lef) as f:
-            for l in f.readlines():
-                match = re.search("SIZE ((?:[0-9]*[.])?[0-9]+) BY ((?:[0-9]*[.])?[0-9]+)", l)
-                if match:
-                    array_x = float(match.group(1))
-                    array_y = float(match.group(2))
-                    break
+        # get array dimensions from LEF
+        array_x, array_y = macro_size_from_lef(lef)
 
         # set basic vars
         self.wb_name = f"efuse_wb_mem_{params[1]}x{params[2]}"
@@ -180,7 +184,7 @@ class EfuseLibrelane(LibrelaneRunner):
             self.config["VERILOG_DEFINES"].append(f"EFUSE_SPIMEM_NAME={self.name}")
 
         # floorplan & PDN
-        cm = 10         # core margin
+        cm = 10 # core margin
         wb_area = 35000 + spi*10000 # area estimate
         if (n_arrays_depth < 2) and (mask > 1):
             wb_area += 2000
@@ -225,4 +229,70 @@ class EfuseLibrelane(LibrelaneRunner):
         prefix = "efuse_wb_mem." if spi else ""
         for x in range(n_arrays_depth):
             array_inst.update({f"{prefix}efuse_gen_depth[{x}].efuse_array" : [cm + (array_x+array_step_x)*x , cm + 5, "N" if (x%2) else "FN"]})
+        self.add_macro(macro, gds, lef, bb, array_inst)
+
+
+class EfuseAsyncLibrelane(LibrelaneRunner):
+    """
+    eFuse memory async wrapper implementation in Librelane
+    """
+    def __init__(self, params, macro : str, gds : str, lef : str, bb : str, nwords : int, word_width : int):
+
+        super().__init__()
+        assert(nwords==1 and word_width==8) # the only size supported for now
+
+        if params[0] != "async":
+            self.panic("Please use async wrapper for the async eFuse array.")
+
+        # determine sizes and paths
+        self.macro = macro
+        self.nwords = nwords
+        self.word_width = word_width
+
+        # get array dimensions from LEF
+        array_x, array_y = macro_size_from_lef(lef)
+
+        # set basic vars
+        self.substitute_step("OpenROAD.CTS")
+        self.substitute_step("Checker.SetupViolations")
+        self.name = f"efuse_async_mem_{nwords}x{word_width}"
+        self.config["DESIGN_NAME"] = self.name
+        self.config["VERILOG_FILES"] = [ str(self.cd / "efuse_async_mem.v") ]
+
+        # floorplan & PDN
+        cm = 10 # core margin
+
+        self.config["FP_SIZING"] = "absolute"
+        self.config["DIE_AREA"] = da = [0, 0, array_x+cm*2+35, array_y+cm*3]
+        self.config["CORE_AREA"] = [da[0] + cm, da[1] + cm, da[2] - cm, da[3] - cm]
+        self.config["IO_PIN_ORDER_CFG"] = str(self.cd / "async_pin.cfg")
+
+        self.config["FP_PDN_CORE_RING"] = True
+        self.config["PDN_CORE_RING_VWIDTH"] = 1.2
+        self.config["PDN_CORE_RING_HWIDTH"] = 1.2
+        self.config["PDN_CORE_RING_VSPACING"] = 0.5
+        self.config["PDN_CORE_RING_HSPACING"] = 0.5
+        self.config["PDN_CORE_RING_VOFFSET"] = 4
+        self.config["PDN_CORE_RING_HOFFSET"] = 7
+
+        self.config["PDN_HPITCH"] = 20
+        self.config["PDN_HOFFSET"] = 5
+        self.config["PDN_VPITCH"] = 20
+        self.config["PDN_VOFFSET"] = 5
+        self.config["FP_MACRO_HORIZONTAL_HALO"] = 5
+        self.config["FP_MACRO_VERTICAL_HALO"] = 3
+        self.config["PDN_CFG"] = str(self.cd / "pdn_cfg.tcl")
+
+        # PnR
+        self.config["PL_MAX_DISPLACEMENT_X"] = array_x
+        self.config["PL_MAX_DISPLACEMENT_Y"] = array_y
+        self.config["RT_MAX_LAYER"] = "Metal4"
+        self.config["GRT_ALLOW_CONGESTION"] = True
+        self.config["RSZ_DONT_TOUCH_RX"] = ".*_cell"
+        self.config["DIODE_ON_PORTS"] = "in"
+        self.config["DESIGN_REPAIR_MAX_WIRE_LENGTH"] = 800
+
+        # efuse macro
+        array_inst = {}
+        array_inst.update({"efuse_array" : [cm , cm+7, "FN"]})
         self.add_macro(macro, gds, lef, bb, array_inst)

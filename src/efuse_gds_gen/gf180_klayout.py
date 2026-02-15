@@ -78,11 +78,11 @@ class LayoutGf180mcu():
         """
         return int(round(m / self.layout.dbu))
         
-    def grid_allign(self, x : int):
+    def grid_align(self, x : float):
         """
-        Allign to grid
+        Align to grid
         """
-        return (x//self.grid) * self.grid
+        return (int(x)//self.grid) * self.grid
     
 class CellGf180mcu():
     """
@@ -218,12 +218,14 @@ class CellGf180mcu():
             return
         xvias = ((box.width() - METALVIA_OVERLAP*2 + VIA_DIST) // stepx) 
         yvias = ((box.height() - METALVIA_OVERLAP*2 + VIA_DIST) // stepy)
+        x0 = box.p1.x + self.l.grid_align((box.width() - xvias*stepx + VIA_DIST) // 2)
+        y0 = box.p1.y + self.l.grid_align((box.height() - yvias*stepy + VIA_DIST) // 2)
         if xvias == 0 and enlarge:
             xvias = 1
+            x0 = box.p1.x
         if yvias == 0 and enlarge:
             yvias = 1
-        x0 = box.p1.x + self.l.grid_allign((box.width() - xvias*stepx + VIA_DIST) // 2)
-        y0 = box.p1.y + self.l.grid_allign((box.height() - yvias*stepy + VIA_DIST) // 2)
+            y0 = box.p1.y
         
         boxes = []
         for i in range(xvias):
@@ -231,7 +233,7 @@ class CellGf180mcu():
                 point = db.Point(x0 + i*stepx, y0 + j*stepy)
                 no_via = False
                 for ib in inhibit_boxes:
-                    if ib.touches(db.Box(point.x-VIA_SIZE, point.y-VIA_SIZE, point.x+VIA_SIZE, point.y+VIA_SIZE)):
+                    if ib.touches(db.Box(point.x-VIA_SIZE-M2_DIST, point.y-VIA_SIZE-M2_DIST, point.x+VIA_SIZE+M2_DIST, point.y+VIA_SIZE+M2_DIST)):
                         no_via = True
                         break
                 if not no_via:
@@ -273,6 +275,13 @@ class CellGf180mcu():
                         b = s.shape().box.transformed(s.trans())
                         boxes.append(b)
         return boxes
+
+    def find_boxes_with_text_inst(self, box_layer : int, label_layer : int, label : str, cell, inst : db.Instance):
+        boxes = cell.find_boxes_with_text(box_layer, label_layer, label)
+        tboxes = []
+        for b in boxes:
+            tboxes.append(b.transformed(inst.trans))
+        return tboxes
         
 class StdCellGf180mcu(CellGf180mcu):
     """

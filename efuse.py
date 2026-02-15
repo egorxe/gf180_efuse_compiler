@@ -16,25 +16,34 @@ import subprocess as sp
 
 from src.efuse_gds_gen.efuse_array import create_efuse_array
 from src.efuse_spice_gen.generate_spice import generate_spices
-from src.efuse_spice_gen.efuse_tests import EfuseArrayTest
+from src.efuse_gds_gen.efuse_array_async import create_efuse_array_async
+from src.efuse_spice_gen.generate_spice_async import generate_spices_async
+from src.efuse_spice_gen.efuse_tests import EfuseArrayTest, EfuseArrayAsyncTest
 from src.magic.magic_wrapper import magic
-from src.digital.librelane import EfuseLibrelane
+from src.digital.librelane import EfuseLibrelane, EfuseAsyncLibrelane
 from src.digital.verilog import EfuseVerilog
 
 class EfuseFlow:
     """
     eFuse array creation & verification flow.
     """
-    def __init__(self, nwords : int, word_width : int, root_dir : Path, 
-                    xyce_netlist : str, digital_wrapper : tuple, ncpus : int, 
-                    skip_drclvs : bool, verbose : bool):
+    def __init__(self, nwords : int, word_width : int, root_dir : Path,
+                    xyce_netlist : str, async_efuse : bool, digital_wrapper : tuple,  
+                    ncpus : int, skip_drclvs : bool, verbose : bool):
         self.nwords = nwords
         self.word_width = word_width
-        self.name = f"efuse_array_{nwords}x{word_width}"
+        self.async_efuse = async_efuse
+        async_str = "_async" if async_efuse else ""
+        self.name = f"efuse_array{async_str}_{nwords}x{word_width}"
         self.ncpus = ncpus
         self.xyce_netlist = xyce_netlist.lower()
         self.digital_wrapper = digital_wrapper
         self.skip_checks = skip_drclvs
+
+        if async_efuse:
+            if nwords != 1 or word_width != 8:
+                self.panic("For async eFuse only 1x8 configuration is supported for now.")
+            self.async_wrapper_name = f"efuse_async_mem_{nwords}x{word_width}"
 
         self.root_dir = root_dir
         self.scripts_dir = root_dir / "src"
@@ -49,7 +58,6 @@ class EfuseFlow:
         except FileNotFoundError:
             pass
         os.symlink(self.run_dir, self.last_link)
-
 
         # setup logging
         if verbose:
@@ -150,7 +158,10 @@ class EfuseFlow:
         self.gds_name = Path(self.name + ".gds").absolute()
         self.add_cells_json = Path("add_cells.json").absolute()
         logging.info("Generating eFuse array GDS file... ")
-        create_efuse_array(self.gds_name, self.name, self.nwords, self.word_width, flat=False, add_cells = self.add_cells_json)
+        if self.async_efuse:
+            create_efuse_array_async(self.gds_name, self.name, self.nwords, self.word_width, flat=False, add_cells = self.add_cells_json)
+        else:
+            create_efuse_array(self.gds_name, self.name, self.nwords, self.word_width, flat=False, add_cells = self.add_cells_json)
         logging.info(f"eFuse array cell written to {self.gds_name.name}.")
 
         logging.info("Generating eFuse array LEF file... ")
@@ -163,20 +174,28 @@ class EfuseFlow:
         Generate SPICE netlists & test wrappers.
         """
         logging.info("Generating spice netlists for LVS & simulation... ")
-        ret = generate_spices(self.name, self.pdk_path, self.nwords, self.word_width, add_cells = self.add_cells_json)
+        if self.async_efuse:
+            ret = generate_spices_async(self.async_wrapper_name, self.pdk_path, self.nwords, self.word_width, add_cells = self.add_cells_json)
+        else:
+            ret = generate_spices(self.name, self.pdk_path, self.nwords, self.word_width, add_cells = self.add_cells_json)
         self.spice_name = ret[0]
         self.klvs_name = ret[1]
         self.tb_name = ret[2]
 
-    def magic_extraction(self):
+    def magic_extraction(self, digital : bool):
         """
         Run circuit extraction with Magic.
         """
-        logging.info("Performing circuit extraction with Magic... ")
+        args = {}
+        if digital:
+            if self.digital_wrapper[0] == "none":
+                return
+            args = {"GDS" : self.digital.gds, "CELL" : self.digital.name}
+        logging.info(f"Performing {"digital wrapper " if digital else ""}circuit extraction with Magic... ")
         self.ext_netlist = Path(self.name + ".magic_ext.spice").absolute()
-        self.run_magic("magic_extract", {"SPICE_NAME" : self.ext_netlist})
+        self.run_magic("magic_extract", {"SPICE_NAME" : self.ext_netlist, **args})
         self.pex_netlist = Path(self.name + ".magic_pex.spice").absolute()
-        self.run_magic("magic_pex", {"SPICE_NAME" : self.pex_netlist})
+        self.run_magic("magic_pex", {"SPICE_NAME" : self.pex_netlist, **args})
 
         # patch extracted netlists (replace 5V models with 6V)
         self.regexp_patch(self.ext_netlist, "_05v0", "_06v0")
@@ -208,7 +227,10 @@ class EfuseFlow:
         Xyce test helper.
         """
         logging.info(f"Running Xyce tests for {name} netlist...")
-        test = EfuseArrayTest(self.nwords, self.word_width, self.tb_name, netlist, self.spice_name, is_flat, 5.0, self.ncpus)
+        if self.async_efuse:
+            test = EfuseArrayAsyncTest(self.nwords, self.word_width, self.tb_name, netlist, self.spice_name, is_flat, 5.0, self.ncpus)
+        else:
+            test = EfuseArrayTest(self.nwords, self.word_width, self.tb_name, netlist, self.spice_name, is_flat, 5.0, self.ncpus)
         if not test.run_tests():
             self.panic("Xyce test failed, stopping.")
 
@@ -218,6 +240,8 @@ class EfuseFlow:
         """
         if self.xyce_netlist == "none":
             return
+        if self.async_efuse and self.digital_wrapper[0] == "none":
+            self.panic("To perform Xyce simulation of async eFuse netlist, please enable the async digital wrapper.")
 
         logging.info("Running tests in Xyce simulation...")
         if self.xyce_netlist in ["schematic", "all"]:
@@ -247,7 +271,10 @@ class EfuseFlow:
         if self.digital_wrapper[0] != "none":
             logging.info(f"Implementing {self.digital_wrapper[0]} digital wrapper with Librelane...")
 
-            self.digital = EfuseLibrelane(self.digital_wrapper, self.name, self.gds_name, self.lef_name, self.verilog_bb, self.nwords, self.word_width)
+            if self.async_efuse:
+                self.digital = EfuseAsyncLibrelane(self.digital_wrapper, self.name, self.gds_name, self.lef_name, self.verilog_bb, self.nwords, self.word_width)
+            else:
+                self.digital = EfuseLibrelane(self.digital_wrapper, self.name, self.gds_name, self.lef_name, self.verilog_bb, self.nwords, self.word_width)
             self.digital.run()
             if not self.digital.final:
                 self.panic("Digital wrapper generation failed!")
@@ -295,16 +322,16 @@ class EfuseFlow:
         
         self.generate_spice()
 
-        self.magic_extraction()
-
         if not self.skip_checks:
             self.klayout_checks()
-
-        self.xyce_tests()
 
         self.generate_verilog()
 
         self.gen_digital_wrapper()
+
+        self.magic_extraction(self.async_efuse) # for async array digital wrapper will be extracted
+        
+        self.xyce_tests()
 
         self.release_files()
 
@@ -318,13 +345,14 @@ def main():
     parser = argparse.ArgumentParser(description = "A script to generate and verify eFuse array targeting GF180MCU technology.")
     parser.add_argument("number_of_words", type = int,      help = "Number of words in eFuse array.")
     parser.add_argument("word_width", type = int,           help = "Width of word in eFuse array.")
+    parser.add_argument("--async-efuse", action="store_true", help = "Generate asynchronous eFuse.")
     parser.add_argument("--ncpus", type = int, default = 1, help = "Number of CPU threads to use in KLayout & Xyce, default = 1.")
-    parser.add_argument("--skip-drclvs", action="store_true" , help = "Skip DRC & LVS checks.")
-    parser.add_argument("--verbose", action="store_true" , help = "Debug level output verbosity.")
+    parser.add_argument("--skip-drclvs", action="store_true", help = "Skip DRC & LVS checks.")
+    parser.add_argument("--verbose", action="store_true",   help = "Debug level output verbosity.")
     parser.add_argument("--xyce-netlist", type = str, default = "pex", choices=["none", "schematic", "extracted", "pex", "all"],
         help = "Run Xyce tests with specified netlist, default = pex."
     )
-    parser.add_argument("--digital-wrapper", type = str, default = "none", choices=["none", "wishbone", "spi"],
+    parser.add_argument("--digital-wrapper", type = str, default = "none", choices=["none", "wishbone", "spi", "async"],
         help = "Generate digital wrapper with Librelane, default = none."
     )
     parser.add_argument("--digital-depth", type = int, default = None, help = "Depth of digital memory block.")
@@ -340,7 +368,7 @@ def main():
         args.digital_depth = args.number_of_words
 
     # run the flow
-    flow = EfuseFlow(args.number_of_words, args.word_width, root_dir, args.xyce_netlist, 
+    flow = EfuseFlow(args.number_of_words, args.word_width, root_dir, args.xyce_netlist, args.async_efuse,
         (args.digital_wrapper, args.digital_depth, args.digital_width),
         args.ncpus, args.skip_drclvs, args.verbose
     )
