@@ -1,27 +1,58 @@
-name: Run eFuse compiler in Docker
-description: Run eFuse aray creation & verification in IIC-OSIC-TOOLS container.
-on: [push]
+name: Run eFuse compiler in nix
+
+# Events that trigger the workflow
+on:
+  # Runs on all pushes to branches
+  push:
+    branches:
+      - "**"
+    tags-ignore:
+      - "**"
+  # Runs on all PRs
+  pull_request:
+  # Manual Dispatch
+  workflow_dispatch:
 
 jobs:
-    get_ids:
-        name: Get UID & GID
-        runs-on: ubuntu-latest
-        outputs:
-            uid: ${{ steps.ids.outputs.uid }}
-            gid: ${{ steps.ids.outputs.gid }}
-        steps:
-            - name: Get IDs
-              id: ids
-              run: echo "uid=$(id -u)" >> $GITHUB_OUTPUT && echo "gid=$(id -g)" >> $GITHUB_OUTPUT
-    test:
-        name: Run test
-        needs: get_ids
-        runs-on: ubuntu-latest
-        container: 
-            image: hpretl/iic-osic-tools:2025.07.pre1
-            options: --user ${{needs.get_ids.outputs.uid}}:${{needs.get_ids.outputs.gid}}
-        steps:
-            - name: Check out repository code
-              uses: actions/checkout@v4
-            - name: Generate 16x1 eFuse array
-              run: bash -c ". /headless/.bashrc && PDK=gf180mcuD ./efuse.py 16 1"
+  efuse:
+    runs-on: ubuntu-24.04
+    name: eFuse compiler test
+    steps:
+      #- name: Maximize build space
+        #uses: AdityaGarg8/remove-unwanted-software@v5
+        #with:
+          #remove-dotnet: "true"
+          #remove-android: "true"
+          #remove-haskell: "true"
+          #remove-codeql: "true"
+          #remove-docker-images: "true"
+      - uses: actions/checkout@v4
+      - name: Setup Nix
+        uses: ./.github/actions/setup_nix
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          nix_cache_domain: ${{ vars.NIX_CACHE }}
+          nix_public_key: ${{ vars.NIX_PUBLIC_KEY }}
+      - name: Build with Nix
+        uses: ./.github/actions/build_nix
+        with:
+          nix_system: x86_64-linux
+      - name: Check Nix
+        run: |
+          sudo du -hs /nix/store/* | sort -h | tail -n 10
+          sudo tree /nix/store/*-librelane || true
+      - name: Clone the PDK
+        run: |
+          git clone --depth 1 --branch 1.7.0 https://github.com/wafer-space/gf180mcu/
+      - name: Sync 16x1 eFuse
+        run: |
+          nix develop --command python3 efuse.py 16 1
+      - name: Async 1x8 eFuse with wrapper
+        run: |
+          nix develop --command python3 efuse.py 1 8 --async --digital-wrapper async
+      - name: Sync 16x8 eFuse with SPI iface
+        run: |
+          nix develop --command python3 efuse.py 16 8 --digital-wrapper spi
+      - name: Sync 64x32 eFuse with Wishbone iface
+        run: |
+          nix develop --command python3 efuse.py 64 32 --skip-drclvs --xyce-netlist schematic --digital-wrapper wishbone

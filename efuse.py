@@ -131,7 +131,7 @@ class EfuseFlow:
         Check the environment.
         """
         if ("PDK_ROOT" not in os.environ) or ("PDK" not in os.environ):
-            os.environ["PDK_ROOT"] = os.environ["HOME"] + "/.ciel"
+            os.environ["PDK_ROOT"] = str((self.root_dir / "gf180mcu").absolute())
             os.environ["PDK"] = "gf180mcuD"
             logging.warning(f"PDK_ROOT and/or PDK environment variables are not set, assuming GF180MCU PDK at: {os.environ['PDK_ROOT']}/{os.environ['PDK']}")
         

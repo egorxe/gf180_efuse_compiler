@@ -19,7 +19,7 @@ To generate and verify an eFuse array a Linux system is required with the follow
 1. Python 3.8+ with klayout package (0.29+, could be installed with pip).
 2. KLayout 0.29+ (for DRC & LVS).
 3. magic (any version compatible with GF180MCU PDK for the circuit extraction).
-4. Xyce (any version compatible with GF180MCU PDK for the circuit verification).
+4. Xyce (7.9+).
 5. LibreLane version with GF180MCU support, environment from [wafer.space project template](https://github.com/wafer-space/gf180mcu-project-template) is recommended.
 
 Additionally the open source GF180MCU PDK should be installed and environmental variable PDK_ROOT should be set to it's location and variable PDK to specific PDK variant (for example gf180mcuD). The recommended way to install the PDK is the [ciel tool](https://github.com/fossi-foundation/ciel). 
