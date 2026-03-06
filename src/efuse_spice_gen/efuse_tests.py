@@ -25,12 +25,10 @@ class EfuseTestRunner(XyceTestRunner):
         self.max_word_val = 2**self.word_width - 1
         self.is_flat = is_flat
 
+        self.init_memory()
+
         super().__init__(tb, netlist, uut_file, vdd, TRANSITION_TIME, ncpus)
         logging.getLogger(__name__)
-
-        # create test memory array and empty blown map
-        self.memory = [0] * self.nwords
-        self.blown_map = {0 : 0}
 
         # patch flat netlist with parameters
         if is_flat:
@@ -38,6 +36,13 @@ class EfuseTestRunner(XyceTestRunner):
 
         # create empty list for references to test funtions
         self.tests = []
+
+    def init_memory(self):
+        """ 
+        Create test memory array and empty blown map
+        """
+        self.memory = [0] * self.nwords
+        self.blown_map = {0 : 0}
 
     def fuse_num(self, s : str):
         """
@@ -186,7 +191,7 @@ class EfuseArrayAsyncTest(EfuseTestRunner):
     """
     def __init__(self, nwords : int, word_width : int, tb : str, netlist : str, uut_file : str, is_flat : bool, vdd : float, ncpus : int = 1):
         super().__init__(nwords, word_width, tb, netlist, uut_file, is_flat, vdd, ncpus)
-        self.tests.append(self.async_wrapper_test)
+        self.tests.append(self.async_wrapper_tests)
 
         # remove antenna diodes
         self.regexp_patch(self.netlist, r"^D", r"*D")
@@ -233,12 +238,12 @@ class EfuseArrayAsyncTest(EfuseTestRunner):
         self.set(self.reset_n, True)
         self.wait_for(10e-9)
 
-    def async_wrapper_test(self):
+    def async_wrapper_test(self, num : int = 0):
         """
         Simple async eFuse test which writes eFuse cell, resets and reads the result. 
         """
         # write eFuse
-        self.new_test_run("xyce_async_write")
+        self.new_test_run(f"xyce_async_write_{num}")
         self.do_reset()
         self.wait_for(100e-9)
         self.perform_efuse_write(random.randrange(self.max_word_val+1), random.randrange(10,100)*0.1e-9)
@@ -247,12 +252,20 @@ class EfuseArrayAsyncTest(EfuseTestRunner):
         self.dump_memory()
 
         # read eFuse
-        self.new_test_run("xyce_async_read")
+        self.new_test_run(f"xyce_async_read_{num}")
         self.do_reset()
         self.wait_for(10e-9)
         self.perform_efuse_read(random.randrange(10,100)*0.1e-9)
         self.simulate_and_check()
         self.check_fuse_currents(False)
+
+    def async_wrapper_tests(self):
+        """
+        Perform several tests with random values
+        """
+        for i in range(4):
+            self.init_memory()
+            self.async_wrapper_test(i)
 
 
 class EfuseWbTest(EfuseTestRunner):
@@ -287,7 +300,7 @@ class EfuseWbTest(EfuseTestRunner):
         self.wb_rst_i = self.create_driver("wb_rst_i", True)
         self.wb_cyc_i = self.create_driver("wb_cyc_i", False)
         self.wb_stb_i = self.create_driver("wb_stb_i", False)
-        self.wb_we_i = self.create_driver("wb_we_i", False)
+        self.wb_we_i  = self.create_driver("wb_we_i", False)
         self.wb_adr_i = self.create_bus_driver("wb_adr_i", self.addr_width, 0)
         self.wb_sel_i = self.create_driver("wb_sel_i", 0)
         self.wb_dat_i = self.create_bus_driver("wb_dat_i", self.word_width, 0)

@@ -128,7 +128,7 @@ class EfuseLibrelane(LibrelaneRunner):
         )
         if params not in supported_params:
             logging.warning(f"Digital wrapper configuration {params} was not tested and might fail to generate. " +
-                f"Only the following configurations with largest fitting array geometry were confirmed to work: {supported_params}.")
+                f"Only the following configurations with the largest fitting array geometry were confirmed to work: {supported_params}.")
 
         if word_width != params[2]:
             self.panic("Width of the digital wrapper interface should match array width.")

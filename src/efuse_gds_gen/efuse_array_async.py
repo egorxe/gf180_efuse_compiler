@@ -124,7 +124,7 @@ class BitlineBlock(CellGf180mcu):
             y = fuse_m1_bbox.p2.y
             y2 = fuse_bbox.p2.y + M1_M2_OVERLAP//2
             m2y = fuse_bbox.p2.y - M1_M2_OVERLAP//2
-            m2y2 = pmos_m1_bbox.p2.y #+ PMOS_M1_WDT
+            m2y2 = pmos_m1_bbox.p2.y
             m1_box = self.create_box(l.metal1, fuse_m1_bbox.p1.x, y, fuse_m1_bbox.p2.x, y2)
             m2_box = self.create_box(l.metal2, fuse_m1_bbox.p1.x, m2y, fuse_m1_bbox.p2.x, m2y2)
             self.create_text_p(l.metal2_label, m2_box.center(), f"ANODE[{i}]")

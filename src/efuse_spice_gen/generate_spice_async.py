@@ -53,10 +53,10 @@ def efuse_async_mem(cellname : str, word_width : int, n_fuses : int, add_cells :
 
     for i in range(word_width):
         bitline_ports += f"COL_PROG_N[{i}] OUT[{i}] "
-        array_ports += f"prog[{i}] out[{i}] "
+        array_ports += f"PROG[{i}] OUT[{i}] "
 
-    array_ports += "reset_n ready "
-    bitline_ports += "sense preset_n "
+    array_ports += "RESET_N READY "
+    bitline_ports += "SENSE PRESET_N "
 
     body += f"X0 {bitline_ports} efuse_array_async_1x8 LNUM=0\n"
     # body += f"X0 {bitline_ports} efuse_bitline_async LNUM=0\n"
@@ -168,7 +168,7 @@ def generate_xyce_test(cellname : str, filename : str, spice_name : str, xyce_mo
 
 .SUBCKT efuse ANODE CATHODE PARAMS: PBLOW=0 NUM=-1
 .PARAM BLOWN='IF(NUM<0 , PBLOW, BLOWN_MAP(NUM))'
-Rfuse ANODE CATHODE R='200*(1-BLOWN) + 10000*BLOWN'
+Rfuse ANODE CATHODE R='200*(1-BLOWN) + 20000*BLOWN'
 .ENDS efuse
 
 .include {spice_name}
@@ -296,7 +296,7 @@ X_i_3_0_0_14_19 Z net_3 VDD VNW pfet_06v0 W=1.22e-06 L=5e-07
 * serial solver is more efficient even for large arrays
 .OPTIONS LINSOL TYPE=KLU
 
-.print tran format=csv file={filename}.csv V(RESET_N) V(OUT*) V(PROG*) V(READY) I(Xefuse_array:X*:RFUSE)
+.print tran format=csv file={filename}.csv V(RESET_N) V(OUT*) V(PROG*) I(Xefuse_array:X*:RFUSE)
     """
     
     with open(filename, "w") as f:
