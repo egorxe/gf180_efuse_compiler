@@ -12,7 +12,7 @@
 
 This is a basic eFuse memory block. Contains 16, 32, or 64 word deep eFuse array of arbitrary width plus a sense amplifier circuit.
 
-To write data to the eFuse array, a single word should be selected using one-hot encoding on the `BIT_SEL` bus an inverted data word to write should be provided on the `COL_PROG_N` input. All 0 bits on the `COL_PROG_N` bus will result in blowing of the corresponding fuses in the selected word, and all 1 bits will leave fuses intact. Value on `COL_PROG_N` bus should be kept for at least 1 ms (Tprog).
+To write data to the eFuse array, a single word should be selected using one-hot encoding on the `BIT_SEL` bus an inverted data word to write should be provided on the `COL_PROG_N` input. All 0 bits on the `COL_PROG_N` bus will result in blowing of the corresponding fuses in the selected word, and all 1 bits will leave fuses intact. Value on `COL_PROG_N` bus should be kept for at least 50 us (Tprog).
 
 ![write_wave](wavedrom_efuse_array_write.svg "write_wave")
 

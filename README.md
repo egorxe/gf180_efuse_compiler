@@ -24,16 +24,16 @@ nix-shell
 ./efuse.py 16 1 --digital-wrapper=wishbone
 ```
 
-For more info on compiler arguments, environment requirements, and IP integration, please refer to the documentation.
+For more info on compiler arguments, environment requirements, and IP integration, please refer to the [documentation](https://egorxe.github.io/gf180_efuse_compiler/).
 
 ## Examples
 
 Output files for several precompiled configurations are provided in the releases. Here are some GDS screenshots.
 
-![efuse_array_16x1](docs/efuse_array_16x1.png?raw=true)
+![efuse_array_16x1](docs/img/efuse_array_16x1.png?raw=true)
 
 Minimal synchronous eFuse array with 16 1-bit words.
 
-![efuse_array_64x8](docs/efuse_spi_128x8.png?raw=true)
+![efuse_array_64x8](docs/img/efuse_spi_128x8.png?raw=true)
 
 128x8 eFuse array with SPI digital wrapper built out of 4 64x8 blocks.
