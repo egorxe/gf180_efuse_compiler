@@ -53,10 +53,10 @@ def efuse_async_mem(cellname : str, word_width : int, n_fuses : int, add_cells :
 
     for i in range(word_width):
         bitline_ports += f"COL_PROG_N[{i}] OUT[{i}] "
-        array_ports += f"PROG[{i}] OUT[{i}] "
+        array_ports += f"prog[{i}] out[{i}] "
 
-    array_ports += "RESET_N READY "
-    bitline_ports += "SENSE PRESET_N "
+    array_ports += "reset_n ready "
+    bitline_ports += "sense preset_n "
 
     body += f"X0 {bitline_ports} efuse_array_async_1x8 LNUM=0\n"
     # body += f"X0 {bitline_ports} efuse_bitline_async LNUM=0\n"

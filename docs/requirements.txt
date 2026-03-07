@@ -1,0 +1,3 @@
+myst_parser
+furo
+sphinxcontrib-svg2pdfconverter

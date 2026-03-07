@@ -18,14 +18,6 @@ jobs:
     runs-on: ubuntu-24.04
     name: eFuse compiler test
     steps:
-      #- name: Maximize build space
-        #uses: AdityaGarg8/remove-unwanted-software@v5
-        #with:
-          #remove-dotnet: "true"
-          #remove-android: "true"
-          #remove-haskell: "true"
-          #remove-codeql: "true"
-          #remove-docker-images: "true"
       - uses: actions/checkout@v4
       - name: Setup Nix
         uses: ./.github/actions/setup_nix
