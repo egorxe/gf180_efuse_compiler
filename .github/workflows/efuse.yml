@@ -36,7 +36,7 @@ jobs:
       - name: Clone the PDK
         run: |
           git clone --depth 1 --branch 1.7.0 https://github.com/wafer-space/gf180mcu/
-      - name: Sync 16x1 eFuse
+      - name: Basic 16x1 eFuse
         run: |
           nix develop --command python3 efuse.py 16 1
       - name: Async 1x8 eFuse with wrapper
