@@ -4,3 +4,4 @@ macros
 __pycache__
 sim_build
 /gf180mcu
+_build

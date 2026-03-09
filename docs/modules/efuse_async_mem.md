@@ -11,11 +11,11 @@ It's recommended to connect `reset_n` signal to the active-low POR reset to prot
 
 To write the eFuse it's enough to set the corresponding bits on the `prog` bus high for at least 50 us (Tprog). Updated data will be latched after the next reset.
 
- ![alt text](efuse_async_mem_write.svg "title")
+ ![alt text](wavedrom_efuse_async_mem_write.svg "title")
 
 eFuse bits are latched to `out` bus no later than after 10 ns (Tready) after reset deassertion. Data readiness will be marked by the `ready` signal going high.
  
-![alt text](efuse_async_mem_read.svg "title")
+![alt text](wavedrom_efuse_async_mem_read.svg "title")
 
  
 
