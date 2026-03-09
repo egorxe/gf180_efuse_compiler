@@ -3,10 +3,13 @@ name: Build documentation
 on:
   push:
     branches: [main] # branch to trigger deployment
+    paths:
+    - 'doc/**'
 
 jobs:
   pages:
     runs-on: ubuntu-latest
+    name: Build documentation
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -14,5 +17,14 @@ jobs:
       pages: write
       id-token: write
     steps:
+    - uses: actions/checkout@master
+    - id: install_latex
+      run: sudo apt-get update && sudo apt-get -y install texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended latexmk librsvg2-bin
+    - id: install_sphinx
+      run: pip3 install --break-system-packages -Ur docs/requirements.txt
+    - id: build_pdf
+      run: make -C docs latexpdf
     - id: deployment
       uses: sphinx-notes/pages@v3
+      with:
+        checkout: false

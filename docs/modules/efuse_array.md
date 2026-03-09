@@ -1,7 +1,3 @@
-```{{raw}} latex
-\pagebreak
-```
-
 (efuse_array)=
 # Basic eFuse array block (efuse_array)
 
