@@ -2,9 +2,13 @@ name: Build documentation
 
 on:
   push:
-    branches: [main] # branch to trigger deployment
+    branches: [main]
     paths:
-    - 'doc/**'
+    - 'docs/**'
+    
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   pages:
