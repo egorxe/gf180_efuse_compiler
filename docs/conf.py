@@ -26,7 +26,7 @@ html_static_path = ['_static']
 html_title = "GF180MCU eFuse compiler documentation v." + release
 
 # add PDF to HTML if running from CI
-html_extra_path = "_build/latex/gf180mcuefusecompiler.pdf" if "CI" in os.environ else ""
+html_extra_path = ["_build/latex/gf180mcuefusecompiler.pdf"] if "CI" in os.environ else []
 
 # -- Options for PDF output --------------------------------------------------
 
