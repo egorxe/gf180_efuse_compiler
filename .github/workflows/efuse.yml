@@ -47,4 +47,4 @@ jobs:
           nix develop --command python3 efuse.py 16 8 --digital-wrapper spi
       - name: Sync 64x32 eFuse with Wishbone iface
         run: |
-          nix develop --command python3 efuse.py 64 32 --skip-drclvs --xyce-netlist schematic --digital-wrapper wishbone --digital-depth=64
+          nix develop --command python3 efuse.py 32 32 --skip-drclvs --xyce-netlist schematic --digital-wrapper wishbone --digital-depth=64
