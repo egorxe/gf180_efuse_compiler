@@ -2,7 +2,7 @@
 
 //! This is a basic asynchronous eFuse memory block which stores whole eFuse array content in latches after a single read. Contains one 8-bit wide word of eFuse plus a sense amplifier circuit per each bit.
 //!
-//! To write data to the asynchronous eFuse array, `COL_PROG_N` input bus should be driven with an inverted data word to write. All 0 bits on `COL_PROG_N` bus will result in blowing of the corresponding fuses in the array, and all 1 bits will leave fuses intact. Value on `COL_PROG_N` bus should be kept for at least 1 ms (Tprog).
+//! To write data to the asynchronous eFuse array, `COL_PROG_N` input bus should be driven with an inverted data word to write. All 0 bits on `COL_PROG_N` bus will result in blowing of the corresponding fuses in the array, and all 1 bits will leave fuses intact. Value on `COL_PROG_N` bus should be kept for at least 50 us (Tprog).
 //!{head:{text:'Async eFuse write cycle'},
 //!  signal: [
 //!    {node:                     '..A...B.', },

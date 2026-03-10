@@ -42,9 +42,9 @@ jobs:
       - name: Async 1x8 eFuse with wrapper
         run: |
           nix develop --command python3 efuse.py 1 8 --async --digital-wrapper async
-      # - name: Sync 16x8 eFuse with SPI iface
-      #   run: |
-      #     nix develop --command python3 efuse.py 16 8 --digital-wrapper spi
-      # - name: Sync 64x32 eFuse with Wishbone iface
-      #   run: |
-      #     nix develop --command python3 efuse.py 64 32 --skip-drclvs --xyce-netlist schematic --digital-wrapper wishbone
+      - name: Sync 16x8 eFuse with SPI iface
+        run: |
+          nix develop --command python3 efuse.py 16 8 --digital-wrapper spi
+      - name: Sync 64x32 eFuse with Wishbone iface
+        run: |
+          nix develop --command python3 efuse.py 64 32 --skip-drclvs --xyce-netlist schematic --digital-wrapper wishbone --digital-depth=64

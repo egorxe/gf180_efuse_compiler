@@ -226,10 +226,10 @@ class XyceTestRunner:
         Quiet ugly, but tablefile supports only time parameter for some reason.
         """
         with open(fname, "w") as f:
-            f.write(".PARAM BLOWN_MAP(X)='table(X\n")
+            f.write(".FUNC BLOWN_MAP(X) {table(X\n")
             for i in sorted(table.items()):
                 f.write(f"+, {i[0]}, {i[1]}\n")
-            f.write("+)'")
+            f.write("+)}")
 
     def get_max_currents(self):
         """

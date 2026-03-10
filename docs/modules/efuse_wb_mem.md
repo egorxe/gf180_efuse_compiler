@@ -23,16 +23,16 @@ It's recommended to connect `write_enable_i` signal to the active-low POR reset 
 
 ## Ports
 
-| Port name      | Direction | Type               | Description                                  |
+| Port name      | Direction | Width              | Description                                  |
 | -------------- | --------- | ------------------ | -------------------------------------------- |
-| wb_clk_i       | input     |                    | Wishbone clock                               |
-| wb_rst_i       | input     |                    | Active-high Wishbone reset                   |
-| wb_stb_i       | input     |                    | Wishbone STB signal                          |
-| wb_cyc_i       | input     |                    | Wishbone CYC signal                          |
+| wb_clk_i       | input     | 1                  | Wishbone clock                               |
+| wb_rst_i       | input     | 1                  | Active-high Wishbone reset                   |
+| wb_stb_i       | input     | 1                  | Wishbone STB signal                          |
+| wb_cyc_i       | input     | 1                  | Wishbone CYC signal                          |
 | wb_adr_i       | input     | [WB_ADR_WIDTH-1:0] | Wishbone per-word address                    |
 | wb_dat_i       | input     | [WB_DAT_WIDTH-1:0] | Wishbone data to write to eFuse              |
 | wb_sel_i       | input     | [WB_SEL_WIDTH-1:0] | Wishbone write mask                          |
-| wb_we_i        | input     |                    | Wishbone write enable                        |
+| wb_we_i        | input     | 1                  | Wishbone write enable                        |
 | wb_dat_o       | output    | [WB_DAT_WIDTH-1:0] | Wishbone data read from eFuse                |
-| wb_ack_o       | output    |                    | Wishbone acknowledge signal                  |
-| write_enable_i | input     |                    | Active-high asynchronous write-enable signal |
+| wb_ack_o       | output    | 1                  | Wishbone acknowledge signal                  |
+| write_enable_i | input     | 1                  | Active-high asynchronous write-enable signal |

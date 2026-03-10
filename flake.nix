@@ -9,7 +9,11 @@
   };
 
   inputs = {
-    librelane.url = "github:librelane/librelane/dev";
+    nix-eda.url = "github:fossi-foundation/nix-eda/5.9.0";
+    librelane = {
+      url = "github:librelane/librelane/leo/gf180mcu";
+      inputs.nix-eda.follows = "nix-eda";
+    };
   };
 
   outputs = {
@@ -27,7 +31,13 @@
       system:
         import nixpkgs {
           inherit system;
-          overlays = [nix-eda.overlays.default devshell.overlays.default librelane.overlays.default ];
+          overlays = [nix-eda.overlays.default devshell.overlays.default librelane.overlays.default (final: prev: {
+              magic = prev.magic.override {
+                version = "8.3.581";
+                sha256 = "sha256-mv6ekJsaFx6m828NenIRa4ryZsR7YHB1vWKI+axgx8U=";
+              };
+            })
+          ];
         }
     );
     
@@ -38,7 +48,7 @@
     devShells = nix-eda.forAllSystems (system: let
       pkgs = (self.legacyPackages.${system});
     in {
-      default = lib.callPackageWith pkgs (pkgs.createLibreLaneShell {
+      default = lib.callPackageWith pkgs (librelane.createOpenLaneShell {
         extra-packages = with pkgs; [
           # Simulation
           iverilog

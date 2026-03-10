@@ -29,7 +29,7 @@ Alternatively it's possible to create a compatible environment on a Linux system
 1. Python 3.8+ with klayout package (0.29+, could be installed with pip).
 2. KLayout 0.29+ (for DRC & LVS).
 3. magic (any version compatible with GF180MCU PDK).
-4. Xyce (7.9+).
+4. Xyce (7.8+).
 5. LibreLane with recent GF180MCU support (3.0.0+).
 
 
@@ -59,7 +59,7 @@ A flow script for the eFuse generation and verification, ``efuse.py``, is locate
 * ``--digital-depth`` - selects depth for digitally wrapped blocks. Should be a multiple of basic block depth. Defaults to a single basic block depth.
 * ``--digital-width`` - selects width for digitally wrapped blocks. Currently, it is limited to the basic block width and should not be changed.
 * ``--skip-drclvs`` - by default the compiler flow will run the DRC and LVS verification of the basic eFuse block with KLayout. This option will disable these checks.
-* ``--xyce-netlist`` - controls which basic block SPICE netlist will be used for the verification in Xyce analog transient simulation. Available options are none, schematic, extracted, pex, and all. By default, a parasitic extraction netlist is used. Currently for the synchronous eFuse variants only the basic block will be simulated in Xyce and for the asynchronous variant only the wrapped one, simulation will fail for asynchronous block without a wrapper.
+* ``--xyce-netlist`` - controls which SPICE netlist will be used for the verification in Xyce analog transient simulation. Available options are none, schematic, extracted, pex, and all. By default, a parasitic extraction netlist is used. Currently for the synchronous eFuse variants only the basic block will be simulated in Xyce and for the asynchronous variant only the wrapped one, simulation will fail for asynchronous block without a wrapper.
 
 For example, to generate a minimal possible basic array with 16 1-bit eFuse words, run:
 

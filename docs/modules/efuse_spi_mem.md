@@ -9,7 +9,7 @@
 
  This is a digital wrapper around {ref}`efuse_array` providing an EEPROM-like SPI interface to the eFuse memory.
 
-SPI protocol is a subset of the 25-series SPI EEPROMs protocol with active-low chip-select and data latching on the rising clock edge. The protocol consists of sending an 8-bit command opcode to the device first and receiving or sending more data after it, depending on the command. The 24-bit address is used in read and write sequences, but bits exceeding the eFuse depth are ignored. Maximum SPI clock frequency is 10 MHz.
+SPI protocol is a subset of the 25-series SPI EEPROMs protocol with an active-low chip-select and data latching on the rising clock edge. The protocol consists of sending an 8-bit command opcode to the device first and receiving or sending more data after it, depending on the command. The 24-bit address is used in read and write sequences, but bits exceeding the eFuse depth are ignored. Maximum SPI clock frequency is 10 MHz.
 
 Supported SPI commands are:
 
